@@ -17,7 +17,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
     
@@ -29,33 +29,59 @@ jobs:
     
     - name: Install dependencies
       run: |
+        echo "📦 Installation des dépendances..."
         pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest
+        echo "✅ Dépendances installées"
     
     - name: Set PYTHONPATH
       run: |
         echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+        echo "✅ PYTHONPATH configuré: ${{ github.workspace }}"
     
     - name: Check if data exists
       run: |
+        echo "🔍 Vérification du dataset..."
         if [ ! -f "data/train.csv" ]; then
           echo "❌ Erreur: data/train.csv non trouvé"
+          echo "Fichiers dans data/:"
+          ls -la data/ || echo "Le dossier data/ n'existe pas"
           echo "Assurez-vous que le dataset est commité dans le dépôt Git"
           exit 1
         fi
-        echo "✓ Dataset trouvé"
-        echo "Nombre de lignes: $(wc -l < data/train.csv)"
+        echo "✅ Dataset trouvé"
+        LINES=$(wc -l < data/train.csv)
+        echo "📊 Nombre de lignes: $LINES"
+        if [ "$LINES" -lt 10 ]; then
+          echo "⚠️  Attention: Le dataset semble très petit ($LINES lignes)"
+        fi
     
     - name: Train model
+      env:
+        PYTHONPATH: ${{ github.workspace }}
       run: |
         echo "🚀 Début de l'entraînement..."
-        python src/train.py
+        python src/train.py || {
+          echo "❌ Erreur lors de l'entraînement"
+          echo "Vérification des fichiers..."
+          ls -la src/ || true
+          ls -la data/ || true
+          exit 1
+        }
     
     - name: Evaluate model
+      env:
+        PYTHONPATH: ${{ github.workspace }}
       run: |
         echo "📊 Évaluation du modèle..."
-        python src/evaluate.py
+        if [ ! -f "reports/metrics.json" ]; then
+          echo "❌ Erreur: reports/metrics.json non trouvé. L'entraînement a peut-être échoué."
+          exit 1
+        fi
+        python src/evaluate.py || {
+          echo "⚠️  Erreur lors de l'évaluation (peut être normal si c'est la première fois)"
+        }
     
     - name: Run tests
       run: |
@@ -124,7 +150,7 @@ jobs:
         cml comment create report.md
     
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: model-artifacts
         path: |

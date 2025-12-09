@@ -39,7 +39,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -96,7 +96,7 @@ jobs:
         echo "${exp_name}" > "experiments/name_${exp_name}.txt"
     
     - name: Upload experiment results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: experiment-${{ matrix.model_type }}-${{ matrix.n_estimators }}-${{ matrix.max_depth }}
         path: experiments/
@@ -112,10 +112,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: all-experiments
     
@@ -226,7 +226,7 @@ jobs:
         fi
     
     - name: Upload summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: experiments-summary
         path: |
