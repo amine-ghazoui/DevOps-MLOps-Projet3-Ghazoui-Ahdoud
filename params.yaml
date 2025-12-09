@@ -1,0 +1,35 @@
+# Configuration pour le projet ML CI/CD
+# Dataset: Kaggle House Prices
+
+data:
+  path: 'data/train.csv'
+  test_size: 0.2
+  random_state: 42
+  target: 'SalePrice'
+
+model:
+  type: 'random_forest'  # Options: random_forest, gradient_boosting, ridge, lasso
+  params:
+    # Random Forest params
+    n_estimators: 100
+    max_depth: 15
+    min_samples_split: 5
+    min_samples_leaf: 2
+    random_state: 42
+    
+    # Gradient Boosting params (si utilisé)
+    # learning_rate: 0.1
+    
+    # Ridge/Lasso params (si utilisé)
+    # alpha: 1.0
+
+training:
+  cv_folds: 5
+  verbose: 1
+
+evaluation:
+  metrics:
+    - rmse
+    - mae
+    - r2
+  generate_plots: true

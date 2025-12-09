@@ -1,0 +1,236 @@
+name: Experiment Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Modèles à tester (séparés par des virgules)'
+        required: false
+        default: 'random_forest,gradient_boosting,ridge'
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 0'  # Chaque dimanche à 2h du matin
+
+jobs:
+  matrix-experiments:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        model_type: ['random_forest', 'gradient_boosting', 'ridge']
+        n_estimators: [50, 100, 200]
+        max_depth: [10, 15, 20]
+        exclude:
+          # Exclure les combinaisons non pertinentes pour Ridge
+          - model_type: 'ridge'
+            n_estimators: 50
+          - model_type: 'ridge'
+            n_estimators: 100
+          - model_type: 'ridge'
+            n_estimators: 200
+          - model_type: 'ridge'
+            max_depth: 10
+          - model_type: 'ridge'
+            max_depth: 15
+          - model_type: 'ridge'
+            max_depth: 20
+      fail-fast: false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Set PYTHONPATH
+      run: |
+        echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+    
+    - name: Check dataset
+      run: |
+        if [ ! -f "data/train.csv" ]; then
+          echo "❌ Dataset non trouvé"
+          exit 1
+        fi
+        echo "✓ Dataset disponible"
+    
+    - name: Update params.yaml
+      run: |
+        python -c "
+        import yaml
+        with open('params.yaml', 'r') as f:
+            params = yaml.safe_load(f)
+        params['model']['type'] = '${{ matrix.model_type }}'
+        
+        # Mettre à jour les paramètres selon le type de modèle
+        if '${{ matrix.model_type }}' != 'ridge':
+            params['model']['params']['n_estimators'] = ${{ matrix.n_estimators }}
+            params['model']['params']['max_depth'] = ${{ matrix.max_depth }}
+        
+        with open('params.yaml', 'w') as f:
+            yaml.dump(params, f)
+        "
+    
+    - name: Train model
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+      run: |
+        echo "🔬 Expérience: ${{ matrix.model_type }} (n_estimators=${{ matrix.n_estimators }}, max_depth=${{ matrix.max_depth }})"
+        python src/train.py
+    
+    - name: Save results
+      run: |
+        mkdir -p experiments
+        exp_name="${{ matrix.model_type }}_${{ matrix.n_estimators }}_${{ matrix.max_depth }}"
+        cp reports/metrics.json "experiments/metrics_${exp_name}.json"
+        echo "${exp_name}" > "experiments/name_${exp_name}.txt"
+    
+    - name: Upload experiment results
+      uses: actions/upload-artifact@v3
+      with:
+        name: experiment-${{ matrix.model_type }}-${{ matrix.n_estimators }}-${{ matrix.max_depth }}
+        path: experiments/
+        retention-days: 30
+  
+  summarize-experiments:
+    needs: matrix-experiments
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: all-experiments
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        pip install pandas pyyaml tabulate
+    
+    - name: Setup CML
+      uses: iterative/setup-cml@v1
+    
+    - name: Summarize results
+      run: |
+        python << 'EOF'
+        import os
+        import json
+        import pandas as pd
+        
+        results = []
+        for root, dirs, files in os.walk('all-experiments'):
+            for file in files:
+                if file.startswith('metrics_') and file.endswith('.json'):
+                    filepath = os.path.join(root, file)
+                    try:
+                        with open(filepath, 'r') as f:
+                            data = json.load(f)
+                            results.append({
+                                'Modèle': data.get('model_type', 'unknown'),
+                                'N_estimators': data.get('model_params', {}).get('n_estimators', 'N/A'),
+                                'Max_depth': data.get('model_params', {}).get('max_depth', 'N/A'),
+                                'RMSE': round(data['test']['rmse'], 2),
+                                'MAE': round(data['test']['mae'], 2),
+                                'R²': round(data['test']['r2'], 4)
+                            })
+                    except Exception as e:
+                        print(f"Erreur lors du traitement de {filepath}: {e}")
+        
+        if not results:
+            print("❌ Aucun résultat trouvé")
+            exit(1)
+        
+        df = pd.DataFrame(results)
+        df = df.sort_values('RMSE')
+        
+        print('\n' + '='*80)
+        print('📊 RÉSUMÉ DES EXPÉRIENCES')
+        print('='*80 + '\n')
+        
+        print(df.to_string(index=False))
+        
+        print('\n' + '='*80)
+        print('🏆 MEILLEUR MODÈLE')
+        print('='*80)
+        best = df.iloc[0]
+        print(f"  Modèle: {best['Modèle']}")
+        print(f"  N_estimators: {best['N_estimators']}")
+        print(f"  Max_depth: {best['Max_depth']}")
+        print(f"  RMSE: {best['RMSE']}")
+        print(f"  MAE: {best['MAE']}")
+        print(f"  R²: {best['R²']}")
+        print('='*80 + '\n')
+        
+        # Sauvegarder le résumé
+        df.to_csv('experiments_summary.csv', index=False)
+        print("✓ Résumé sauvegardé dans experiments_summary.csv")
+        
+        # Créer un résumé pour GitHub
+        with open('summary.md', 'w') as f:
+            f.write('# 🔬 Résultats des expériences\n\n')
+            f.write('## 📊 Tous les résultats\n\n')
+            f.write(df.to_markdown(index=False))
+            f.write('\n\n## 🏆 Meilleur modèle\n\n')
+            f.write(f"- **Modèle:** {best['Modèle']}\n")
+            f.write(f"- **N_estimators:** {best['N_estimators']}\n")
+            f.write(f"- **Max_depth:** {best['Max_depth']}\n")
+            f.write(f"- **RMSE:** {best['RMSE']}\n")
+            f.write(f"- **MAE:** {best['MAE']}\n")
+            f.write(f"- **R²:** {best['R²']}\n")
+        EOF
+        
+        cat summary.md >> $GITHUB_STEP_SUMMARY
+    
+    - name: Create CML report for experiments
+      env:
+        REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "## 🔬 Rapport des expériences ML" >> experiments_report.md
+        echo "" >> experiments_report.md
+        echo "**Date:** $(date '+%Y-%m-%d %H:%M:%S')" >> experiments_report.md
+        echo "" >> experiments_report.md
+        cat summary.md >> experiments_report.md
+        echo "" >> experiments_report.md
+        echo "### 📊 Résumé CSV" >> experiments_report.md
+        echo "" >> experiments_report.md
+        echo '```csv' >> experiments_report.md
+        cat experiments_summary.csv >> experiments_report.md
+        echo '```' >> experiments_report.md
+        
+        # Publier le rapport CML si c'est une PR
+        if [ "${{ github.event_name }}" == "pull_request" ]; then
+          cml comment create experiments_report.md
+        else
+          echo "Pas de PR détectée, rapport sauvegardé dans artifacts"
+        fi
+    
+    - name: Upload summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: experiments-summary
+        path: |
+          experiments_summary.csv
+          summary.md
+          experiments_report.md
+        retention-days: 90

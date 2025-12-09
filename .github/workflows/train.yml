@@ -1,0 +1,148 @@
+name: Train ML Model
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  train-and-report:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+    
+    - name: Set PYTHONPATH
+      run: |
+        echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
+    
+    - name: Check if data exists
+      run: |
+        if [ ! -f "data/train.csv" ]; then
+          echo "❌ Erreur: data/train.csv non trouvé"
+          echo "Assurez-vous que le dataset est commité dans le dépôt Git"
+          exit 1
+        fi
+        echo "✓ Dataset trouvé"
+        echo "Nombre de lignes: $(wc -l < data/train.csv)"
+    
+    - name: Train model
+      run: |
+        echo "🚀 Début de l'entraînement..."
+        python src/train.py
+    
+    - name: Evaluate model
+      run: |
+        echo "📊 Évaluation du modèle..."
+        python src/evaluate.py
+    
+    - name: Run tests
+      run: |
+        echo "🧪 Exécution des tests..."
+        pytest tests/ -v
+      continue-on-error: true
+    
+    - name: Setup CML
+      if: github.event_name == 'pull_request'
+      uses: iterative/setup-cml@v1
+    
+    - name: Create CML report
+      if: github.event_name == 'pull_request'
+      env:
+        REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "## 📊 Rapport d'entraînement ML" >> report.md
+        echo "" >> report.md
+        echo "**Date:** $(date '+%Y-%m-%d %H:%M:%S')" >> report.md
+        echo "" >> report.md
+        
+        # Ajouter les métriques
+        echo "### 🎯 Métriques de performance" >> report.md
+        echo "" >> report.md
+        echo "#### Métriques actuelles" >> report.md
+        echo '```json' >> report.md
+        cat reports/metrics.json >> report.md
+        echo '```' >> report.md
+        echo "" >> report.md
+        
+        # Ajouter le rapport de comparaison
+        if [ -f "reports/comparison_report.md" ]; then
+          cat reports/comparison_report.md >> report.md
+          echo "" >> report.md
+        fi
+        
+        # Ajouter les graphiques
+        echo "### 📈 Visualisations" >> report.md
+        echo "" >> report.md
+        
+        if [ -f "reports/predictions_plot.png" ]; then
+          echo "#### Prédictions vs Valeurs réelles" >> report.md
+          cml-publish reports/predictions_plot.png --md >> report.md
+          echo "" >> report.md
+        fi
+        
+        if [ -f "reports/residuals_plot.png" ]; then
+          echo "#### Analyse des résidus" >> report.md
+          cml-publish reports/residuals_plot.png --md >> report.md
+          echo "" >> report.md
+        fi
+        
+        if [ -f "reports/feature_importance.png" ]; then
+          echo "#### Importance des features" >> report.md
+          cml-publish reports/feature_importance.png --md >> report.md
+          echo "" >> report.md
+        fi
+        
+        if [ -f "reports/comparison_plot.png" ]; then
+          echo "#### Comparaison avec la baseline" >> report.md
+          cml-publish reports/comparison_plot.png --md >> report.md
+          echo "" >> report.md
+        fi
+        
+        # Publier le rapport
+        cml comment create report.md
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: model-artifacts
+        path: |
+          models/
+          reports/
+        retention-days: 30
+    
+    - name: Summary
+      run: |
+        echo "## ✅ Entraînement terminé" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Métriques" >> $GITHUB_STEP_SUMMARY
+        python -c "
+        import json
+        with open('reports/metrics.json', 'r') as f:
+            data = json.load(f)
+        print(f\"- **Modèle:** {data['model_type']}\")
+        print(f\"- **RMSE Test:** {data['test']['rmse']:.2f}\")
+        print(f\"- **MAE Test:** {data['test']['mae']:.2f}\")
+        print(f\"- **R² Test:** {data['test']['r2']:.4f}\")
+        " >> $GITHUB_STEP_SUMMARY
