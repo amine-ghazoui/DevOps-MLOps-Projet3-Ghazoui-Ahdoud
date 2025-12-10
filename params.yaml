@@ -10,9 +10,9 @@ data:
 model:
   type: 'random_forest'  # Options: random_forest, gradient_boosting, ridge, lasso
   params:
-    # Random Forest params
-    n_estimators: 150
-    max_depth: 15
+    # Random Forest params (optimisés selon les tests)
+    n_estimators: 200    # Meilleur: 200 (RMSE: 26549.2, R²: 0.8373)
+    max_depth: 10        # Meilleur: 10 (RMSE: 26549.2, R²: 0.8373)
     min_samples_split: 5
     min_samples_leaf: 2
     random_state: 42
