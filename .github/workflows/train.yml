@@ -159,13 +159,3 @@ jobs:
           models/
           reports/
         retention-days: 30
-```
-
----
-
-## 🔑 Changements clés
-
-1. **Enlever le `if` de Setup CML** - Il s'installe toujours (pas seulement pour les PR)
-2. **L'ordre est crucial** :
-```
-   Train → Setup CML → Create Report (avec if)
