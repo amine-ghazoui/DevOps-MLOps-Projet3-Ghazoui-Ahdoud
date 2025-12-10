@@ -21,7 +21,7 @@ jobs:
     
     steps:
     - name: 📥 Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4      # ⬅️ mise à jour
       with:
         fetch-depth: 0
     
@@ -46,7 +46,6 @@ jobs:
       env:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Début du rapport
         echo "# 🤖 Rapport d'Entraînement ML" >> report.md
         echo "" >> report.md
         echo "**Commit**: \`${{ github.sha }}\`" >> report.md
@@ -54,7 +53,6 @@ jobs:
         echo "**Branche**: \`${{ github.head_ref }}\`" >> report.md
         echo "" >> report.md
         
-        # Métriques
         echo "## 📊 Métriques du Modèle" >> report.md
         echo "" >> report.md
         
@@ -62,7 +60,6 @@ jobs:
           echo "| Métrique | Valeur |" >> report.md
           echo "|----------|--------|" >> report.md
           
-          # Extraire les métriques avec jq
           MSE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['mse']:.2f}\")")
           RMSE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['rmse']:.2f}\")")
           MAE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['mae']:.2f}\")")
@@ -74,7 +71,6 @@ jobs:
           echo "| **R² Score** | **${R2}** |" >> report.md
           echo "" >> report.md
           
-          # Interprétation
           echo "### 💡 Interprétation" >> report.md
           echo "" >> report.md
           echo "- **R² = ${R2}** : Le modèle explique $(echo \"${R2} * 100\" | bc)% de la variance" >> report.md
@@ -84,7 +80,6 @@ jobs:
           echo "⚠️ Fichier metrics.json introuvable" >> report.md
         fi
         
-        # Visualisations
         echo "## 📉 Visualisations" >> report.md
         echo "" >> report.md
         
@@ -102,15 +97,13 @@ jobs:
         
         if [ -f "reports/feature_importance.png" ]; then
           echo "### Importance des Features" >> report.md
-          cml-publish reports/feature_importance.png --md >> report.md
+          cml-publish feature_importance.png --md >> report.md
           echo "" >> report.md
         fi
         
-        # Footer
         echo "---" >> report.md
         echo "🤖 *Rapport généré automatiquement par CML*" >> report.md
         
-        # Publier le rapport
         cml comment create report.md
     
     - name: 📊 Display metrics (for push)
@@ -124,7 +117,7 @@ jobs:
         fi
     
     - name: 💾 Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4   # ⬅️ mise à jour
       with:
         name: model-artifacts-${{ github.run_number }}
         path: |
