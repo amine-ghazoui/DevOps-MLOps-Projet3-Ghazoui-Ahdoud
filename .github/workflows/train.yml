@@ -49,6 +49,11 @@ jobs:
     - name: 🔧 Setup CML
       uses: iterative/setup-cml@v3
     
+    - name: 📦 Install CML (explicit)
+      run: |
+        npm install -g @dvcorg/cml || echo "CML déjà installé"
+        cml --version || echo "Vérification de CML"
+    
     - name: 📊 Evaluate model
       run: |
         python src/evaluate.py
@@ -112,7 +117,7 @@ jobs:
         
         if [ -f "reports/predictions_plot.png" ]; then
           echo "### Prédictions vs Valeurs réelles" >> report.md
-          npx --yes cml-publish reports/predictions_plot.png --md >> report.md
+          cml publish reports/predictions_plot.png --md >> report.md
           echo "" >> report.md
         else
           echo "⚠️ Graphique predictions_plot.png non trouvé" >> report.md
@@ -120,7 +125,7 @@ jobs:
         
         if [ -f "reports/residuals_plot.png" ]; then
           echo "### Résidus" >> report.md
-          npx --yes cml-publish reports/residuals_plot.png --md >> report.md
+          cml publish reports/residuals_plot.png --md >> report.md
           echo "" >> report.md
         else
           echo "⚠️ Graphique residuals_plot.png non trouvé" >> report.md
@@ -128,7 +133,7 @@ jobs:
         
         if [ -f "reports/feature_importance.png" ]; then
           echo "### Importance des Features" >> report.md
-          npx --yes cml-publish reports/feature_importance.png --md >> report.md
+          cml publish reports/feature_importance.png --md >> report.md
           echo "" >> report.md
         else
           echo "⚠️ Graphique feature_importance.png non trouvé" >> report.md
@@ -136,7 +141,7 @@ jobs:
         
         if [ -f "reports/comparison_plot.png" ]; then
           echo "### Comparaison Baseline vs Actuel" >> report.md
-          npx --yes cml-publish reports/comparison_plot.png --md >> report.md
+          cml publish reports/comparison_plot.png --md >> report.md
           echo "" >> report.md
         fi
         
@@ -144,7 +149,7 @@ jobs:
         echo "🤖 *Rapport généré automatiquement par CML*" >> report.md
         
         # Publier le rapport dans la PR
-        npx --yes cml comment create report.md
+        cml comment create report.md
     
     - name: 📊 Display metrics (for push)
       if: github.event_name == 'push'
