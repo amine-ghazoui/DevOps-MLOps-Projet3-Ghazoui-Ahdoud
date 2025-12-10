@@ -64,13 +64,12 @@ jobs:
         if [ -f "reports/metrics.json" ]; then
           echo "| Métrique | Valeur |" >> report.md
           echo "|----------|--------|" >> report.md
-          
-          MSE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['mse']:.2f}\")")
-          RMSE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['rmse']:.2f}\")")
-          MAE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['mae']:.2f}\")")
-          R2=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['r2']:.4f}\")")
-          
-          echo "| MSE | ${MSE} |" >> report.md
+
+          # Adapter selon votre structure (train/test)
+          RMSE=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['rmse']:.2f}\")")
+          MAE=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['mae']:.2f}\")")
+          R2=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['r2']:.4f}\")")
+
           echo "| RMSE | ${RMSE} |" >> report.md
           echo "| MAE | ${MAE} |" >> report.md
           echo "| **R²** | **${R2}** |" >> report.md
