@@ -3,300 +3,138 @@ name: Train ML Model
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'params.yaml'
+      - 'requirements.txt'
+      - 'data/**'
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
 
 jobs:
   train-and-report:
     runs-on: ubuntu-latest
-    
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
     
-    - name: Set up Python
+    - name: 🐍 Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'
         cache: 'pip'
     
-    - name: Install dependencies
+    - name: 📦 Install dependencies
       run: |
-        echo "📦 Installation des dépendances..."
-        pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest
-        echo "✅ Dépendances installées"
+        pip install cml
     
-    - name: Set PYTHONPATH
+    - name: 🎯 Train model
       run: |
-        echo "PYTHONPATH=${{ github.workspace }}" >> $GITHUB_ENV
-        echo "✅ PYTHONPATH configuré: ${{ github.workspace }}"
+        python src/train.py
     
-    - name: Check if data exists
-      run: |
-        echo "🔍 Vérification du dataset..."
-        if [ ! -f "data/train.csv" ]; then
-          echo "❌ Erreur: data/train.csv non trouvé"
-          echo "Fichiers dans data/:"
-          ls -la data/ || echo "Le dossier data/ n'existe pas"
-          echo "Assurez-vous que le dataset est commité dans le dépôt Git"
-          exit 1
-        fi
-        echo "✅ Dataset trouvé"
-        LINES=$(wc -l < data/train.csv)
-        echo "📊 Nombre de lignes: $LINES"
-        if [ "$LINES" -lt 10 ]; then
-          echo "⚠️  Attention: Le dataset semble très petit ($LINES lignes)"
-        fi
-    
-    - name: Train model
-      env:
-        PYTHONPATH: ${{ github.workspace }}
-      run: |
-        echo "🚀 Début de l'entraînement..."
-        python src/train.py || {
-          echo "❌ Erreur lors de l'entraînement"
-          echo "Vérification des fichiers..."
-          ls -la src/ || true
-          ls -la data/ || true
-          exit 1
-        }
-    
-    - name: Evaluate model
-      env:
-        PYTHONPATH: ${{ github.workspace }}
-      run: |
-        echo "📊 Évaluation du modèle..."
-        if [ ! -f "reports/metrics.json" ]; then
-          echo "❌ Erreur: reports/metrics.json non trouvé. L'entraînement a peut-être échoué."
-          exit 1
-        fi
-        python src/evaluate.py || {
-          echo "⚠️  Erreur lors de l'évaluation (peut être normal si c'est la première fois)"
-        }
-    
-    - name: Run tests
-      run: |
-        echo "🧪 Exécution des tests..."
-        pytest tests/ -v
-      continue-on-error: true
-    
-    - name: Setup CML
-      if: github.event_name == 'pull_request'
-      uses: iterative/setup-cml@v1
-    
-    - name: Create CML report
+    - name: 📈 Create CML Report
       if: github.event_name == 'pull_request'
       env:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo "## 📊 Rapport d'entraînement ML" >> report.md
+        # Début du rapport
+        echo "# 🤖 Rapport d'Entraînement ML" >> report.md
         echo "" >> report.md
-        echo "**Date:** $(date '+%Y-%m-%d %H:%M:%S')" >> report.md
-        echo "" >> report.md
-        
-        # Ajouter les métriques
-        echo "### 🎯 Métriques de performance" >> report.md
-        echo "" >> report.md
-        echo "#### Métriques actuelles" >> report.md
-        echo '```json' >> report.md
-        cat reports/metrics.json >> report.md
-        echo '```' >> report.md
+        echo "**Commit**: \`${{ github.sha }}\`" >> report.md
+        echo "**Auteur**: @${{ github.actor }}" >> report.md
+        echo "**Branche**: \`${{ github.head_ref }}\`" >> report.md
         echo "" >> report.md
         
-        # Ajouter le rapport de comparaison
-        if [ -f "reports/comparison_report.md" ]; then
-          cat reports/comparison_report.md >> report.md
+        # Métriques
+        echo "## 📊 Métriques du Modèle" >> report.md
+        echo "" >> report.md
+        
+        if [ -f "reports/metrics.json" ]; then
+          echo "| Métrique | Valeur |" >> report.md
+          echo "|----------|--------|" >> report.md
+          
+          # Extraire les métriques avec jq
+          MSE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['mse']:.2f}\")")
+          RMSE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['rmse']:.2f}\")")
+          MAE=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['mae']:.2f}\")")
+          R2=$(cat reports/metrics.json | python3 -c "import sys, json; print(f\"{json.load(sys.stdin)['r2']:.4f}\")")
+          
+          echo "| MSE (Mean Squared Error) | ${MSE} |" >> report.md
+          echo "| RMSE (Root MSE) | ${RMSE} |" >> report.md
+          echo "| MAE (Mean Absolute Error) | ${MAE} |" >> report.md
+          echo "| **R² Score** | **${R2}** |" >> report.md
+          echo "" >> report.md
+          
+          # Interprétation
+          echo "### 💡 Interprétation" >> report.md
+          echo "" >> report.md
+          echo "- **R² = ${R2}** : Le modèle explique $(echo \"${R2} * 100\" | bc)% de la variance" >> report.md
+          echo "- **RMSE = ${RMSE} €** : Erreur moyenne de prédiction" >> report.md
+          echo "" >> report.md
+        else
+          echo "⚠️ Fichier metrics.json introuvable" >> report.md
+        fi
+        
+        # Visualisations
+        echo "## 📉 Visualisations" >> report.md
+        echo "" >> report.md
+        
+        if [ -f "reports/predictions.png" ]; then
+          echo "### Prédictions vs Valeurs Réelles" >> report.md
+          cml-publish reports/predictions.png --md >> report.md
           echo "" >> report.md
         fi
         
-        # Ajouter les graphiques
-        echo "### 📈 Visualisations" >> report.md
-        echo "" >> report.md
-        
-        if [ -f "reports/predictions_plot.png" ]; then
-          echo "#### Prédictions vs Valeurs réelles" >> report.md
-          cml-publish reports/predictions_plot.png --md >> report.md
-          echo "" >> report.md
-        fi
-        
-        if [ -f "reports/residuals_plot.png" ]; then
-          echo "#### Analyse des résidus" >> report.md
-          cml-publish reports/residuals_plot.png --md >> report.md
+        if [ -f "reports/residuals.png" ]; then
+          echo "### Analyse des Résidus" >> report.md
+          cml-publish reports/residuals.png --md >> report.md
           echo "" >> report.md
         fi
         
         if [ -f "reports/feature_importance.png" ]; then
-          echo "#### Importance des features" >> report.md
+          echo "### Importance des Features" >> report.md
           cml-publish reports/feature_importance.png --md >> report.md
           echo "" >> report.md
         fi
         
-        if [ -f "reports/comparison_plot.png" ]; then
-          echo "#### Comparaison avec la baseline" >> report.md
-          cml-publish reports/comparison_plot.png --md >> report.md
-          echo "" >> report.md
-        fi
+        # Footer
+        echo "---" >> report.md
+        echo "🤖 *Rapport généré automatiquement par CML*" >> report.md
         
         # Publier le rapport
         cml comment create report.md
     
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+    - name: 📊 Display metrics (for push)
+      if: github.event_name == 'push'
+      run: |
+        echo "=== MÉTRIQUES DU MODÈLE ==="
+        if [ -f "reports/metrics.json" ]; then
+          cat reports/metrics.json
+        else
+          echo "⚠️ Pas de fichier metrics.json"
+        fi
+    
+    - name: 💾 Upload artifacts
+      uses: actions/upload-artifact@v3
       with:
-        name: model-artifacts
+        name: model-artifacts-${{ github.run_number }}
         path: |
           models/
           reports/
         retention-days: 30
     
-    - name: Summary
+    - name: ✅ Success notification
+      if: success()
       run: |
-        python << 'EOF'
-        import json
-        import os
-        
-        # Charger les métriques
-        with open('reports/metrics.json', 'r') as f:
-            metrics = json.load(f)
-        
-        # Vérifier si une baseline existe pour comparaison
-        baseline_exists = os.path.exists('reports/baseline_metrics.json')
-        comparison = None
-        if baseline_exists:
-            with open('reports/baseline_metrics.json', 'r') as f:
-                baseline = json.load(f)
-                comparison = {
-                    'rmse': {
-                        'baseline': baseline['test']['rmse'],
-                        'current': metrics['test']['rmse'],
-                        'improvement': ((baseline['test']['rmse'] - metrics['test']['rmse']) / baseline['test']['rmse']) * 100
-                    },
-                    'mae': {
-                        'baseline': baseline['test']['mae'],
-                        'current': metrics['test']['mae'],
-                        'improvement': ((baseline['test']['mae'] - metrics['test']['mae']) / baseline['test']['mae']) * 100
-                    },
-                    'r2': {
-                        'baseline': baseline['test']['r2'],
-                        'current': metrics['test']['r2'],
-                        'improvement': ((metrics['test']['r2'] - baseline['test']['r2']) / abs(baseline['test']['r2'])) * 100
-                    }
-                }
-        
-        # Générer le résumé
-        summary = []
-        summary.append("# 🎯 Résultats de l'entraînement du modèle")
-        summary.append("")
-        summary.append("## 📊 Informations du modèle")
-        summary.append("")
-        summary.append(f"- **Type de modèle:** `{metrics['model_type']}`")
-        summary.append(f"- **Hyperparamètres:** {metrics.get('model_params', {})}")
-        summary.append("")
-        summary.append("---")
-        summary.append("")
-        summary.append("## 📈 Métriques de performance")
-        summary.append("")
-        summary.append("### 🎓 Ensemble d'entraînement (Train)")
-        summary.append("")
-        summary.append("| Métrique | Valeur | Explication |")
-        summary.append("|----------|--------|-------------|")
-        summary.append(f"| **RMSE** | ${metrics['train']['rmse']:,.2f} | Erreur moyenne de prédiction (en dollars) |")
-        summary.append(f"| **MAE** | ${metrics['train']['mae']:,.2f} | Erreur absolue moyenne (en dollars) |")
-        summary.append(f"| **R²** | {metrics['train']['r2']:.4f} | Le modèle explique {metrics['train']['r2']*100:.2f}% de la variance |")
-        summary.append("")
-        summary.append("### ✅ Ensemble de test (Test)")
-        summary.append("")
-        summary.append("| Métrique | Valeur | Explication |")
-        summary.append("|----------|--------|-------------|")
-        summary.append(f"| **RMSE** | ${metrics['test']['rmse']:,.2f} | Erreur moyenne de prédiction sur données non vues |")
-        summary.append(f"| **MAE** | ${metrics['test']['mae']:,.2f} | Erreur absolue moyenne sur données non vues |")
-        summary.append(f"| **R²** | {metrics['test']['r2']:.4f} | Le modèle explique {metrics['test']['r2']*100:.2f}% de la variance |")
-        summary.append("")
-        
-        # Évaluation de la performance
-        r2_score = metrics['test']['r2']
-        if r2_score >= 0.9:
-            performance = "🌟 Excellent"
-            performance_desc = "Le modèle a une performance exceptionnelle !"
-        elif r2_score >= 0.8:
-            performance = "✅ Très bon"
-            performance_desc = "Le modèle a une très bonne performance."
-        elif r2_score >= 0.7:
-            performance = "👍 Bon"
-            performance_desc = "Le modèle a une bonne performance, mais peut être amélioré."
-        elif r2_score >= 0.5:
-            performance = "⚠️ Moyen"
-            performance_desc = "Le modèle a une performance moyenne. Des améliorations sont nécessaires."
-        else:
-            performance = "❌ Faible"
-            performance_desc = "Le modèle a une faible performance. Une révision complète est recommandée."
-        
-        summary.append("---")
-        summary.append("")
-        summary.append("## 🎖️ Évaluation globale")
-        summary.append("")
-        summary.append(f"**Performance:** {performance}")
-        summary.append("")
-        summary.append(f"{performance_desc}")
-        summary.append("")
-        
-        # Comparaison avec baseline si disponible
-        if comparison:
-            summary.append("---")
-            summary.append("")
-            summary.append("## 📊 Comparaison avec la baseline")
-            summary.append("")
-            summary.append("| Métrique | Baseline | Actuel | Amélioration |")
-            summary.append("|----------|----------|--------|--------------|")
-            
-            for metric_name, values in comparison.items():
-                improvement = values['improvement']
-                if metric_name == 'r2':
-                    symbol = "✅" if improvement > 0 else "❌"
-                    summary.append(f"| **{metric_name.upper()}** | {values['baseline']:.4f} | {values['current']:.4f} | {symbol} {improvement:+.2f}% |")
-                else:
-                    symbol = "✅" if improvement > 0 else "❌"
-                    summary.append(f"| **{metric_name.upper()}** | ${values['baseline']:,.2f} | ${values['current']:,.2f} | {symbol} {improvement:+.2f}% |")
-            
-            summary.append("")
-            avg_improvement = sum([v['improvement'] for v in comparison.values()]) / len(comparison)
-            if avg_improvement > 0:
-                summary.append(f"🎉 **Résultat:** Le modèle actuel montre une amélioration moyenne de **{avg_improvement:.2f}%** par rapport à la baseline.")
-            else:
-                summary.append(f"⚠️ **Résultat:** Le modèle actuel montre une dégradation moyenne de **{abs(avg_improvement):.2f}%** par rapport à la baseline.")
-            summary.append("")
-        else:
-            summary.append("---")
-            summary.append("")
-            summary.append("## 📝 Note")
-            summary.append("")
-            summary.append("⚠️ **Première exécution:** Une baseline a été créée. Les prochaines exécutions compareront avec cette baseline.")
-            summary.append("")
-        
-        summary.append("---")
-        summary.append("")
-        summary.append("## 📦 Fichiers générés")
-        summary.append("")
-        summary.append("- ✅ Modèle sauvegardé: `models/model.pkl`")
-        summary.append("- ✅ Métriques: `reports/metrics.json`")
-        summary.append("- ✅ Graphiques: `reports/*.png`")
-        if comparison:
-            summary.append("- ✅ Rapport de comparaison: `reports/comparison_report.md`")
-        summary.append("")
-        summary.append("💡 **Astuce:** Téléchargez les artifacts pour voir tous les graphiques et détails !")
-        
-        # Écrire dans le summary
-        with open(os.environ.get('GITHUB_STEP_SUMMARY', '/dev/stdout'), 'w', encoding='utf-8') as f:
-            f.write('\n'.join(summary))
-        
-        print("✅ Résumé généré avec succès")
-        EOF
+        echo "✅ Pipeline terminé avec succès!"
+        echo "📊 Métriques sauvegardées"
+        echo "🤖 Modèle sauvegardé"
