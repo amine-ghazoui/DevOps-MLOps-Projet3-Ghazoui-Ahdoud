@@ -11,6 +11,8 @@ import pickle
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import matplotlib
+matplotlib.use('Agg')  # Backend non-interactif pour CI/CD
 import matplotlib.pyplot as plt
 import seaborn as sns
 import sys

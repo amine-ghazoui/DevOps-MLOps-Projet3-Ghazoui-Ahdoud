@@ -44,6 +44,22 @@ jobs:
     - name: 🔧 Setup CML
       uses: iterative/setup-cml@v3
     
+    - name: 📊 Evaluate model
+      run: |
+        python src/evaluate.py
+    
+    - name: 🔍 List generated files
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "=== Fichiers générés dans reports/ ==="
+        ls -la reports/ || echo "Dossier reports/ non trouvé"
+        echo ""
+        echo "=== Vérification des visualisations ==="
+        [ -f "reports/predictions_plot.png" ] && echo "✓ predictions_plot.png existe" || echo "✗ predictions_plot.png manquant"
+        [ -f "reports/residuals_plot.png" ] && echo "✓ residuals_plot.png existe" || echo "✗ residuals_plot.png manquant"
+        [ -f "reports/feature_importance.png" ] && echo "✓ feature_importance.png existe" || echo "✗ feature_importance.png manquant"
+        [ -f "reports/comparison_plot.png" ] && echo "✓ comparison_plot.png existe" || echo "✗ comparison_plot.png manquant"
+    
     - name: 📈 Create CML Report
       if: github.event_name == 'pull_request'
       env:
@@ -77,25 +93,45 @@ jobs:
         
         echo "" >> report.md
         
+        # Rapport de comparaison
+        if [ -f "reports/comparison_report.md" ]; then
+          echo "## 📋 Comparaison avec Baseline" >> report.md
+          echo "" >> report.md
+          cat reports/comparison_report.md >> report.md
+          echo "" >> report.md
+        fi
+        
         # Visualisations
         echo "## 📉 Visualisations" >> report.md
         echo "" >> report.md
         
-        if [ -f "reports/predictions.png" ]; then
-          echo "### Prédictions vs Réelles" >> report.md
-          cml-publish reports/predictions.png --md >> report.md
+        if [ -f "reports/predictions_plot.png" ]; then
+          echo "### Prédictions vs Valeurs réelles" >> report.md
+          cml-publish reports/predictions_plot.png --md >> report.md
           echo "" >> report.md
+        else
+          echo "⚠️ Graphique predictions_plot.png non trouvé" >> report.md
         fi
         
-        if [ -f "reports/residuals.png" ]; then
+        if [ -f "reports/residuals_plot.png" ]; then
           echo "### Résidus" >> report.md
-          cml-publish reports/residuals.png --md >> report.md
+          cml-publish reports/residuals_plot.png --md >> report.md
           echo "" >> report.md
+        else
+          echo "⚠️ Graphique residuals_plot.png non trouvé" >> report.md
         fi
         
         if [ -f "reports/feature_importance.png" ]; then
           echo "### Importance des Features" >> report.md
           cml-publish reports/feature_importance.png --md >> report.md
+          echo "" >> report.md
+        else
+          echo "⚠️ Graphique feature_importance.png non trouvé" >> report.md
+        fi
+        
+        if [ -f "reports/comparison_plot.png" ]; then
+          echo "### Comparaison Baseline vs Actuel" >> report.md
+          cml-publish reports/comparison_plot.png --md >> report.md
           echo "" >> report.md
         fi
         

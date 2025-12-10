@@ -7,6 +7,8 @@ import os
 import pickle
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Backend non-interactif pour CI/CD
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
