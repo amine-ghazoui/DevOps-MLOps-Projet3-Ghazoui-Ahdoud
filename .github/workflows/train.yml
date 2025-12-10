@@ -35,15 +35,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        # ⚠️ NE PAS installer cml via pip !
     
     - name: 🎯 Train model
       run: |
         python src/train.py
     
+    # ⬇️ DÉPLACER Setup CML ICI - AVANT de l'utiliser
     - name: 🔧 Setup CML
-      if: github.event_name == 'pull_request'
-      uses: iterative/setup-cml@v3  # ⬅️ AJOUT ICI
+      uses: iterative/setup-cml@v3
     
     - name: 📈 Create CML Report
       if: github.event_name == 'pull_request'
@@ -64,12 +63,11 @@ jobs:
         if [ -f "reports/metrics.json" ]; then
           echo "| Métrique | Valeur |" >> report.md
           echo "|----------|--------|" >> report.md
-
-          # Adapter selon votre structure (train/test)
+          
           RMSE=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['rmse']:.2f}\")")
           MAE=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['mae']:.2f}\")")
           R2=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['r2']:.4f}\")")
-
+          
           echo "| RMSE | ${RMSE} |" >> report.md
           echo "| MAE | ${MAE} |" >> report.md
           echo "| **R²** | **${R2}** |" >> report.md
@@ -80,25 +78,42 @@ jobs:
         echo "" >> report.md
         
         # Visualisations
+        echo "## 📉 Visualisations" >> report.md
+        echo "" >> report.md
+        
         if [ -f "reports/predictions.png" ]; then
           echo "### Prédictions vs Réelles" >> report.md
           cml-publish reports/predictions.png --md >> report.md
+          echo "" >> report.md
         fi
         
         if [ -f "reports/residuals.png" ]; then
           echo "### Résidus" >> report.md
           cml-publish reports/residuals.png --md >> report.md
+          echo "" >> report.md
         fi
         
         if [ -f "reports/feature_importance.png" ]; then
-          echo "### Features" >> report.md
+          echo "### Importance des Features" >> report.md
           cml-publish reports/feature_importance.png --md >> report.md
+          echo "" >> report.md
         fi
         
         echo "---" >> report.md
-        echo "🤖 *Rapport CML*" >> report.md
+        echo "🤖 *Rapport généré automatiquement par CML*" >> report.md
         
+        # Publier le rapport dans la PR
         cml comment create report.md
+    
+    - name: 📊 Display metrics (for push)
+      if: github.event_name == 'push'
+      run: |
+        echo "=== MÉTRIQUES DU MODÈLE ==="
+        if [ -f "reports/metrics.json" ]; then
+          cat reports/metrics.json
+        else
+          echo "⚠️ Pas de fichier metrics.json"
+        fi
     
     - name: 💾 Upload artifacts
       uses: actions/upload-artifact@v4
@@ -108,3 +123,13 @@ jobs:
           models/
           reports/
         retention-days: 30
+```
+
+---
+
+## 🔑 Changements clés
+
+1. **Enlever le `if` de Setup CML** - Il s'installe toujours (pas seulement pour les PR)
+2. **L'ordre est crucial** :
+```
+   Train → Setup CML → Create Report (avec if)
