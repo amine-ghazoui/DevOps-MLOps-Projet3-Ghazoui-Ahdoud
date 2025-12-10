@@ -18,7 +18,6 @@ Ce projet implémente un système CI/CD (Continuous Integration/Continuous Deplo
 - ✅ L'entraînement de modèles ML pour prédire les prix immobiliers
 - ✅ L'évaluation et la comparaison avec une baseline
 - ✅ La génération de rapports automatiques dans les Pull Requests
-- ✅ Les tests de plusieurs modèles/hyperparamètres (matrice d'expériences)
 
 **Technologies utilisées :**
 - Python, scikit-learn, pandas, matplotlib
@@ -35,8 +34,7 @@ ml-cicd-project/
 │
 ├── 📂 .github/
 │   └── 📂 workflows/
-│       ├── train.yml              # Workflow principal d'entraînement
-│       └── experiment-matrix.yml  # Workflow de tests multiples
+│       └── train.yml              # Workflow principal d'entraînement
 │
 ├── 📂 src/                        # Code source Python
 │   ├── __init__.py               # Fichier d'initialisation Python
@@ -437,44 +435,6 @@ pytest tests/ -v
 
 ---
 
-#### `.github/workflows/experiment-matrix.yml`
-**Rôle :** Teste automatiquement plusieurs combinaisons de modèles/hyperparamètres.
-
-**Déclencheurs :**
-- `workflow_dispatch` (déclenchement manuel)
-- `pull_request` vers `main`
-- `schedule` (tous les dimanches à 2h du matin)
-
-**Stratégie de matrice :**
-```yaml
-matrix:
-  model_type: ['random_forest', 'gradient_boosting', 'ridge']
-  n_estimators: [50, 100, 200]
-  max_depth: [10, 15, 20]
-```
-
-**Résultat :** Teste 18 combinaisons différentes (excluant les combinaisons invalides pour Ridge)
-
-**Jobs :**
-
-1. **`matrix-experiments`** (exécuté en parallèle)
-   - Pour chaque combinaison :
-     - Met à jour `params.yaml` avec les paramètres de la matrice
-     - Entraîne le modèle
-     - Sauvegarde les résultats dans `experiments/`
-     - Upload les artifacts
-
-2. **`summarize-experiments`** (après tous les jobs)
-   - Télécharge tous les artifacts
-   - Agrège les résultats dans un tableau
-   - Identifie le meilleur modèle
-   - Génère un résumé Markdown
-   - Publie un rapport CML si c'est une PR
-
-**Durée typique :** 5-15 minutes (selon le nombre de combinaisons)
-
----
-
 ## 🔄 Comment tout fonctionne ensemble
 
 ### Flux complet d'exécution
@@ -632,21 +592,6 @@ matrix:
    - Sur GitHub, créez une PR depuis `test-nouveau-modele` vers `main`
    - Le workflow s'exécutera automatiquement
    - Un commentaire CML apparaîtra avec les résultats
-
-### Tester la matrice d'expériences
-
-1. **Aller sur GitHub Actions**
-   - Onglet "Actions" → "Experiment Matrix"
-
-2. **Déclencher manuellement**
-   - Cliquez sur "Run workflow"
-   - Sélectionnez la branche
-   - Cliquez sur "Run workflow"
-
-3. **Attendre les résultats**
-   - Le workflow créera plusieurs jobs en parallèle
-   - Un job de résumé agrègera tous les résultats
-   - Les résultats seront dans les artifacts
 
 ---
 
