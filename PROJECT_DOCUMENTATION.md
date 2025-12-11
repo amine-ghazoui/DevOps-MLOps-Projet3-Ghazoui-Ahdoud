@@ -18,6 +18,7 @@ Ce projet implémente un système CI/CD (Continuous Integration/Continuous Deplo
 - ✅ L'entraînement de modèles ML pour prédire les prix immobiliers
 - ✅ L'évaluation et la comparaison avec une baseline
 - ✅ La génération de rapports automatiques dans les Pull Requests
+- ✅ Les tests de plusieurs hyperparamètres (matrice d'expériences Random Forest)
 
 **Technologies utilisées :**
 - Python, scikit-learn, pandas, matplotlib
@@ -34,7 +35,8 @@ ml-cicd-project/
 │
 ├── 📂 .github/
 │   └── 📂 workflows/
-│       └── train.yml              # Workflow principal d'entraînement
+│       ├── train.yml              # Workflow principal d'entraînement
+│       └── experiment-matrix.yml  # Sweep hyperparamètres Random Forest
 │
 ├── 📂 src/                        # Code source Python
 │   ├── __init__.py               # Fichier d'initialisation Python
@@ -432,6 +434,33 @@ pytest tests/ -v
     - Affiche un résumé dans GitHub Actions avec les métriques
 
 **Durée typique :** 30-60 secondes
+
+---
+
+#### `.github/workflows/experiment-matrix.yml`
+**Rôle :** Tester automatiquement plusieurs combinaisons d'hyperparamètres Random Forest.
+
+**Déclencheurs :**
+- `workflow_dispatch` (manuel)
+- `pull_request` vers `main`
+- `schedule` (tous les dimanches à 2h)
+
+**Stratégie de matrice (Random Forest) :**
+```yaml
+matrix:
+  n_estimators: [50, 100, 200]
+  max_depth: [10, 15, 20]
+```
+
+**Jobs :**
+1. `matrix-experiments` (en parallèle)  
+   - Met à jour `params.yaml` avec la combinaison RF  
+   - Entraîne le modèle et enregistre `experiments/metrics_*.json`
+2. `summarize-experiments`  
+   - Agrège tous les résultats, identifie la meilleure config RF  
+   - Génère `experiments_report.md` (commentaire CML en PR)
+
+**Durée typique :** 5-10 minutes (selon le nombre de combinaisons)
 
 ---
 
