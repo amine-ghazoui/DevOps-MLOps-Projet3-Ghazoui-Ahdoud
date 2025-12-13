@@ -39,6 +39,7 @@ models/*.h5
 models/*.joblib
 reports/*.png
 reports/*.json
+!reports/baseline_metrics.json  # Baseline doit être versionnée
 reports/*.md
 experiments/
 *.csv

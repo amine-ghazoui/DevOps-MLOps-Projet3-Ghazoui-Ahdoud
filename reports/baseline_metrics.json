@@ -1,0 +1,22 @@
+{
+    "model_type": "random_forest",
+    "model_params": {
+        "n_estimators": 150,
+        "max_depth": 15,
+        "min_samples_split": 5,
+        "min_samples_leaf": 2,
+        "random_state": 42
+    },
+    "train": {
+        "mse": 104071432.91587386,
+        "rmse": 10201.54071284695,
+        "mae": 6870.1424430861325,
+        "r2": 0.9773644055046143
+    },
+    "test": {
+        "mse": 707752328.7106429,
+        "rmse": 26603.61495569057,
+        "mae": 17305.03958505967,
+        "r2": 0.836632599773987
+    }
+}
