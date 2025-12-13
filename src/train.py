@@ -42,6 +42,9 @@ def get_model(model_type, params):
             n_estimators=params.get('n_estimators', 100),
             max_depth=params.get('max_depth', 3),
             learning_rate=params.get('learning_rate', 0.1),
+            min_samples_split=params.get('min_samples_split', 2),
+            min_samples_leaf=params.get('min_samples_leaf', 1),
+            subsample=params.get('subsample', 1.0),
             random_state=params.get('random_state', 42)
         ),
         'ridge': Ridge(
@@ -188,7 +191,11 @@ def main():
     
     # Prétraiter les données
     print("Prétraitement des données...")
-    X_train, X_test, y_train, y_test, scaler = preprocess_pipeline()
+    result = preprocess_pipeline()
+    X_train, X_test, y_train, y_test, scaler = result[:5]
+    log_transform = result[5] if len(result) > 5 else False
+    y_train_orig = result[6] if len(result) > 6 else y_train
+    y_test_orig = result[7] if len(result) > 7 else y_test
     
     # Récupérer les paramètres du modèle
     model_type = params.get('model', {}).get('type', 'random_forest')
@@ -197,24 +204,40 @@ def main():
     # Entraîner le modèle
     model = train_model(X_train, y_train, model_type, model_params)
     
-    # Prédictions
+    # Prédictions (sur l'échelle log si transformation appliquée)
     print("Calcul des prédictions...")
-    y_pred_train = model.predict(X_train)
-    y_pred_test = model.predict(X_test)
+    y_pred_train_log = model.predict(X_train)
+    y_pred_test_log = model.predict(X_test)
     
-    # Calculer les métriques
-    train_metrics = calculate_metrics(y_train, y_pred_train)
-    test_metrics = calculate_metrics(y_test, y_pred_test)
+    # Transformer les prédictions en arrière (expm1 = exp(x) - 1, inverse de log1p)
+    if log_transform:
+        y_pred_train = np.expm1(y_pred_train_log)
+        y_pred_test = np.expm1(y_pred_test_log)
+        # Utiliser les valeurs originales pour les métriques
+        y_train_for_metrics = y_train_orig
+        y_test_for_metrics = y_test_orig
+    else:
+        y_pred_train = y_pred_train_log
+        y_pred_test = y_pred_test_log
+        y_train_for_metrics = y_train
+        y_test_for_metrics = y_test
+    
+    # Calculer les métriques sur l'échelle originale
+    train_metrics = calculate_metrics(y_train_for_metrics, y_pred_train)
+    test_metrics = calculate_metrics(y_test_for_metrics, y_pred_test)
     
     metrics = {
         'model_type': model_type,
         'model_params': model_params,
+        'log_transform': log_transform,
         'train': train_metrics,
         'test': test_metrics
     }
     
     print(f"\nMétriques Train - RMSE: {train_metrics['rmse']:.2f}, R2: {train_metrics['r2']:.4f}")
     print(f"Métriques Test  - RMSE: {test_metrics['rmse']:.2f}, R2: {test_metrics['r2']:.4f}")
+    if log_transform:
+        print("(Métriques calculées après transformation inverse log)")
     
     # Sauvegarder
     save_metrics(metrics)
@@ -222,8 +245,8 @@ def main():
     
     # Créer les visualisations
     print("\nCréation des visualisations...")
-    plot_predictions(y_test, y_pred_test)
-    plot_residuals(y_test, y_pred_test)
+    plot_predictions(y_test_for_metrics, y_pred_test)
+    plot_residuals(y_test_for_metrics, y_pred_test)
     plot_feature_importance(model, X_train.columns.tolist())
     
     print("\n✓ Entraînement terminé avec succès!")

@@ -33,80 +33,120 @@ def load_data(data_path='data/train.csv'):
 
 
 def clean_data(df):
-    """Nettoie les données"""
+    """Nettoie les données avec une gestion améliorée des valeurs manquantes"""
     df = df.copy()
     
     # Supprimer la colonne Id (pas utile pour la prédiction)
     if 'Id' in df.columns:
         df = df.drop('Id', axis=1)
     
-    # Gérer les valeurs manquantes
-    # Pour les colonnes numériques: remplir avec la médiane
+    # Gérer les valeurs manquantes de manière plus sophistiquée
+    # Colonnes où NaN signifie "pas de X" -> remplacer par 0 ou 'None'
+    missing_as_none = ['Alley', 'PoolQC', 'Fence', 'MiscFeature', 'FireplaceQu',
+                       'GarageType', 'GarageFinish', 'GarageQual', 'GarageCond',
+                       'BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2',
+                       'MasVnrType']
+    
+    for col in missing_as_none:
+        if col in df.columns:
+            if df[col].dtype == 'object':
+                df[col].fillna('None', inplace=True)
+            else:
+                df[col].fillna(0, inplace=True)
+    
+    # Pour les colonnes numériques: remplir avec la médiane (plus robuste que la moyenne)
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     for col in numeric_cols:
         if df[col].isnull().sum() > 0:
+            # Utiliser la médiane pour les valeurs manquantes
             df[col].fillna(df[col].median(), inplace=True)
     
-    # Pour les colonnes catégorielles: remplir avec 'None' ou le mode
+    # Pour les colonnes catégorielles restantes: remplir avec le mode
     categorical_cols = df.select_dtypes(include=['object']).columns
     for col in categorical_cols:
         if df[col].isnull().sum() > 0:
-            df[col].fillna(df[col].mode()[0] if len(df[col].mode()) > 0 else 'None', inplace=True)
+            mode_value = df[col].mode()[0] if len(df[col].mode()) > 0 else 'None'
+            df[col].fillna(mode_value, inplace=True)
     
     # Supprimer les doublons
     df = df.drop_duplicates()
     
-    # Supprimer les outliers extrêmes dans SalePrice (si présent)
+    # Gérer les outliers dans SalePrice (si présent)
     if 'SalePrice' in df.columns:
         df = df[df['SalePrice'] > 0]
-        # Retirer les valeurs extrêmes (au-delà de 3 écarts-types)
-        mean_price = df['SalePrice'].mean()
-        std_price = df['SalePrice'].std()
-        df = df[df['SalePrice'] <= mean_price + 3 * std_price]
+        # Utiliser l'IQR (Interquartile Range) pour une détection d'outliers plus robuste
+        Q1 = df['SalePrice'].quantile(0.25)
+        Q3 = df['SalePrice'].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 3 * IQR  # 3 IQR pour être moins agressif
+        upper_bound = Q3 + 3 * IQR
+        df = df[(df['SalePrice'] >= lower_bound) & (df['SalePrice'] <= upper_bound)]
     
     return df
 
 
-def encode_categorical_features(df):
-    """Encode les features catégorielles"""
+def encode_categorical_features(df, target='SalePrice', use_target_encoding=True):
+    """Encode les features catégorielles avec Target Encoding (plus performant) ou Label Encoding"""
     df = df.copy()
     
     # Identifier les colonnes catégorielles
     categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
     
     # Retirer SalePrice si présente
-    if 'SalePrice' in categorical_cols:
-        categorical_cols.remove('SalePrice')
+    if target in categorical_cols:
+        categorical_cols.remove(target)
     
-    # Encoder les variables catégorielles
-    label_encoders = {}
-    for col in categorical_cols:
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col].astype(str))
-        label_encoders[col] = le
+    encoders = {}
     
-    return df, label_encoders
+    if use_target_encoding and target in df.columns:
+        # Target Encoding (mean encoding) - meilleur que Label Encoding
+        for col in categorical_cols:
+            # Calculer la moyenne du target par catégorie
+            target_mean = df.groupby(col)[target].mean()
+            # Remplacer les catégories par leur moyenne de target
+            df[col] = df[col].map(target_mean)
+            # Pour les valeurs manquantes (nouvelles catégories), utiliser la moyenne globale
+            df[col].fillna(df[target].mean(), inplace=True)
+            encoders[col] = target_mean
+    else:
+        # Label Encoding (fallback)
+        for col in categorical_cols:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col].astype(str))
+            encoders[col] = le
+    
+    return df, encoders
 
 
 def create_features(df):
-    """Crée de nouvelles features"""
+    """Crée de nouvelles features améliorées"""
     df = df.copy()
     
     # Features d'interaction si les colonnes existent
     if 'GrLivArea' in df.columns and 'OverallQual' in df.columns:
         df['QualityArea'] = df['GrLivArea'] * df['OverallQual']
+        df['QualityArea2'] = df['GrLivArea'] * (df['OverallQual'] ** 2)  # Interaction non-linéaire
     
     if 'TotalBsmtSF' in df.columns and 'GrLivArea' in df.columns:
         df['TotalSF'] = df['TotalBsmtSF'] + df['GrLivArea']
+        df['SF_per_Room'] = np.where(
+            df['TotRmsAbvGrd'] > 0,
+            df['GrLivArea'] / df['TotRmsAbvGrd'],
+            0
+        ) if 'TotRmsAbvGrd' in df.columns else df['TotalSF']
     
     if 'YearBuilt' in df.columns and 'YearRemodAdd' in df.columns:
-        df['Age'] = 2024 - df['YearBuilt']
-        df['RemodAge'] = 2024 - df['YearRemodAdd']
+        current_year = 2024
+        df['Age'] = current_year - df['YearBuilt']
+        df['RemodAge'] = current_year - df['YearRemodAdd']
+        df['YearsSinceRemod'] = df['YearRemodAdd'] - df['YearBuilt']
+        df['RemodIndicator'] = (df['YearRemodAdd'] != df['YearBuilt']).astype(int)
     
     if 'BsmtFullBath' in df.columns and 'BsmtHalfBath' in df.columns:
         if 'FullBath' in df.columns and 'HalfBath' in df.columns:
             df['TotalBath'] = (df['BsmtFullBath'] + df['FullBath'] + 
                                0.5 * (df['BsmtHalfBath'] + df['HalfBath']))
+            df['HasHalfBath'] = ((df['BsmtHalfBath'] + df['HalfBath']) > 0).astype(int)
     
     if 'GarageArea' in df.columns and 'GarageCars' in df.columns:
         # Éviter la division par zéro
@@ -115,6 +155,37 @@ def create_features(df):
             df['GarageArea'] / df['GarageCars'],
             0
         )
+        df['HasGarage'] = (df['GarageArea'] > 0).astype(int)
+    
+    # Features de ratio
+    if 'LotArea' in df.columns and 'GrLivArea' in df.columns:
+        df['LotAreaRatio'] = np.where(
+            df['LotArea'] > 0,
+            df['GrLivArea'] / df['LotArea'],
+            0
+        )
+    
+    if 'TotalBsmtSF' in df.columns and '1stFlrSF' in df.columns:
+        df['BsmtRatio'] = np.where(
+            df['1stFlrSF'] > 0,
+            df['TotalBsmtSF'] / df['1stFlrSF'],
+            0
+        )
+    
+    # Features de qualité combinées
+    if 'OverallQual' in df.columns and 'OverallCond' in df.columns:
+        df['OverallScore'] = df['OverallQual'] * df['OverallCond']
+        df['QualityCondDiff'] = df['OverallQual'] - df['OverallCond']
+    
+    # Features d'extérieur
+    if 'OpenPorchSF' in df.columns and 'EnclosedPorch' in df.columns:
+        if '3SsnPorch' in df.columns and 'ScreenPorch' in df.columns:
+            df['TotalPorchSF'] = (df['OpenPorchSF'] + df['EnclosedPorch'] + 
+                                  df.get('3SsnPorch', 0) + df.get('ScreenPorch', 0))
+    
+    # Features de décennie
+    if 'YearBuilt' in df.columns:
+        df['DecadeBuilt'] = (df['YearBuilt'] // 10) * 10
     
     return df
 
@@ -147,21 +218,30 @@ def select_features(df, target='SalePrice'):
     return df[available_features + ([target] if target in df.columns else [])]
 
 
-def split_data(df, target='SalePrice', test_size=0.2, random_state=42):
-    """Sépare les données en ensembles train/test"""
+def split_data(df, target='SalePrice', test_size=0.2, random_state=42, log_transform_target=True):
+    """Sépare les données en ensembles train/test avec transformation log optionnelle"""
     if target not in df.columns:
         raise ValueError(f"Colonne cible '{target}' non trouvée dans le dataset")
     
     X = df.drop(target, axis=1)
-    y = df[target]
+    y = df[target].copy()
     
-    X_train, X_test, y_train, y_test = train_test_split(
+    # Séparer d'abord
+    X_train, X_test, y_train_orig, y_test_orig = train_test_split(
         X, y, 
         test_size=test_size, 
         random_state=random_state
     )
     
-    return X_train, X_test, y_train, y_test
+    # Transformation log après séparation (sur train et test séparément)
+    if log_transform_target:
+        y_train = np.log1p(y_train_orig)  # log1p = log(1+x) pour éviter log(0)
+        y_test = np.log1p(y_test_orig)
+    else:
+        y_train = y_train_orig
+        y_test = y_test_orig
+    
+    return X_train, X_test, y_train, y_test, y_train_orig, y_test_orig, log_transform_target
 
 
 def scale_features(X_train, X_test):
@@ -200,9 +280,9 @@ def preprocess_pipeline(data_path='data/train.csv', params_file='params.yaml'):
     df = clean_data(df)
     print(f"Après nettoyage: {df.shape}")
     
-    # Encoder les variables catégorielles
+    # Encoder les variables catégorielles (AVANT la séparation train/test pour target encoding)
     print("\n=== Encodage des variables catégorielles ===")
-    df, label_encoders = encode_categorical_features(df)
+    df, encoders = encode_categorical_features(df, target='SalePrice', use_target_encoding=True)
     
     # Créer features
     print("\n=== Création de features ===")
@@ -218,11 +298,12 @@ def preprocess_pipeline(data_path='data/train.csv', params_file='params.yaml'):
     random_state = params.get('data', {}).get('random_state', 42)
     
     print("\n=== Séparation train/test ===")
-    X_train, X_test, y_train, y_test = split_data(
+    X_train, X_test, y_train, y_test, y_train_orig, y_test_orig, log_transform = split_data(
         df, 
         target='SalePrice',
         test_size=test_size,
-        random_state=random_state
+        random_state=random_state,
+        log_transform_target=True
     )
     
     # Normaliser
@@ -231,21 +312,31 @@ def preprocess_pipeline(data_path='data/train.csv', params_file='params.yaml'):
     
     print(f"\nTrain set: {X_train_scaled.shape}")
     print(f"Test set: {X_test_scaled.shape}")
-    print(f"Features: {list(X_train_scaled.columns)}\n")
+    print(f"Features: {list(X_train_scaled.columns)}")
+    print(f"Transformation log du target: {log_transform}\n")
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, log_transform, y_train_orig, y_test_orig
 
 
 if __name__ == "__main__":
     # Test du pipeline
     try:
-        X_train, X_test, y_train, y_test, scaler = preprocess_pipeline()
+        result = preprocess_pipeline()
+        X_train, X_test, y_train, y_test, scaler = result[:5]
+        log_transform = result[5] if len(result) > 5 else False
+        y_train_orig = result[6] if len(result) > 6 else y_train
+        y_test_orig = result[7] if len(result) > 7 else y_test
+        
         print("\n✓ Prétraitement réussi!")
         print(f"\nStatistiques de SalePrice:")
-        print(f"  Train - Min: ${y_train.min():,.0f}, Max: ${y_train.max():,.0f}, Mean: ${y_train.mean():,.0f}")
-        print(f"  Test  - Min: ${y_test.min():,.0f}, Max: ${y_test.max():,.0f}, Mean: ${y_test.mean():,.0f}")
+        print(f"  Train - Min: ${y_train_orig.min():,.0f}, Max: ${y_train_orig.max():,.0f}, Mean: ${y_train_orig.mean():,.0f}")
+        print(f"  Test  - Min: ${y_test_orig.min():,.0f}, Max: ${y_test_orig.max():,.0f}, Mean: ${y_test_orig.mean():,.0f}")
+        if log_transform:
+            print(f"  (Transformation log appliquée)")
     except Exception as e:
         print(f"\n❌ Erreur: {e}")
+        import traceback
+        traceback.print_exc()
         print("\nAssurez-vous d'avoir téléchargé le dataset depuis:")
         print("https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data")
         print("Et placez le fichier 'train.csv' dans le dossier 'data/'")
