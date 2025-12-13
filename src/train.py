@@ -36,6 +36,11 @@ def get_model(model_type, params):
             n_estimators=params.get('n_estimators', 100),
             max_depth=params.get('max_depth', None),
             min_samples_split=params.get('min_samples_split', 2),
+            min_samples_leaf=params.get('min_samples_leaf', 1),
+            max_features=params.get('max_features', 'sqrt'),
+            bootstrap=params.get('bootstrap', True),
+            max_samples=params.get('max_samples', None),
+            n_jobs=params.get('n_jobs', None),
             random_state=params.get('random_state', 42)
         ),
         'gradient_boosting': GradientBoostingRegressor(
