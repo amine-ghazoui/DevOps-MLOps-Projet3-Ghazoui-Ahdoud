@@ -90,11 +90,9 @@ jobs:
           echo "| Métrique | Valeur |" >> report.md
           echo "|----------|--------|" >> report.md
           
-          RMSE=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['rmse']:.2f}\")")
           MAE=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['mae']:.2f}\")")
           R2=$(cat reports/metrics.json | python3 -c "import sys, json; m=json.load(sys.stdin); print(f\"{m['test']['r2']:.4f}\")")
           
-          echo "| RMSE | ${RMSE} |" >> report.md
           echo "| MAE | ${MAE} |" >> report.md
           echo "| **R²** | **${R2}** |" >> report.md
         else

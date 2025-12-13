@@ -10,7 +10,7 @@ import os
 import pickle
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import Ridge, Lasso
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import mean_absolute_error, r2_score
 import matplotlib
 matplotlib.use('Agg')  # Backend non-interactif pour CI/CD
 import matplotlib.pyplot as plt
@@ -82,14 +82,10 @@ def save_model(model, scaler, model_path='models/model.pkl'):
 
 def calculate_metrics(y_true, y_pred):
     """Calcule les métriques de performance"""
-    mse = mean_squared_error(y_true, y_pred)
-    rmse = np.sqrt(mse)
     mae = mean_absolute_error(y_true, y_pred)
     r2 = r2_score(y_true, y_pred)
     
     return {
-        'mse': float(mse),
-        'rmse': float(rmse),
         'mae': float(mae),
         'r2': float(r2)
     }
@@ -234,8 +230,8 @@ def main():
         'test': test_metrics
     }
     
-    print(f"\nMétriques Train - RMSE: {train_metrics['rmse']:.2f}, R2: {train_metrics['r2']:.4f}")
-    print(f"Métriques Test  - RMSE: {test_metrics['rmse']:.2f}, R2: {test_metrics['r2']:.4f}")
+    print(f"\nMétriques Train - MAE: {train_metrics['mae']:.2f}, R2: {train_metrics['r2']:.4f}")
+    print(f"Métriques Test  - MAE: {test_metrics['mae']:.2f}, R2: {test_metrics['r2']:.4f}")
     if log_transform:
         print("(Métriques calculées après transformation inverse log)")
     

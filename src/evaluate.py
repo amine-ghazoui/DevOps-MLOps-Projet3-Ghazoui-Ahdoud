@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use('Agg')  # Backend non-interactif pour CI/CD
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import mean_absolute_error, r2_score
 import sys
 
 # Ajouter le répertoire parent au path pour les imports
@@ -57,7 +57,7 @@ def compare_with_baseline(current_metrics, baseline_path='reports/baseline_metri
         'improvements': {}
     }
     
-    for metric in ['rmse', 'mae', 'r2']:
+    for metric in ['mae', 'r2']:
         baseline_val = baseline_metrics['test'][metric]
         current_val = current_metrics['test'][metric]
         
@@ -65,7 +65,7 @@ def compare_with_baseline(current_metrics, baseline_path='reports/baseline_metri
             # Pour R2, plus c'est haut, mieux c'est
             improvement = ((current_val - baseline_val) / abs(baseline_val)) * 100
         else:
-            # Pour RMSE et MAE, plus c'est bas, mieux c'est
+            # Pour MAE, plus c'est bas, mieux c'est
             improvement = ((baseline_val - current_val) / baseline_val) * 100
         
         comparison['improvements'][metric] = {
@@ -171,7 +171,6 @@ def evaluate_model_on_test_set():
     
     # Métriques
     metrics = {
-        'rmse': float(np.sqrt(mean_squared_error(y_test, y_pred))),
         'mae': float(mean_absolute_error(y_test, y_pred)),
         'r2': float(r2_score(y_test, y_pred))
     }
@@ -191,7 +190,7 @@ def main():
         return
     
     print(f"Modèle: {current_metrics['model_type']}")
-    print(f"RMSE Test: {current_metrics['test']['rmse']:.2f}")
+    print(f"MAE Test: {current_metrics['test']['mae']:.2f}")
     print(f"R2 Test: {current_metrics['test']['r2']:.4f}\n")
     
     # Comparer avec la baseline

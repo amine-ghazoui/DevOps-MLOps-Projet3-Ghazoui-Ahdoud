@@ -8,15 +8,12 @@ data:
   target: 'SalePrice'
 
 model:
-  type: 'gradient_boosting'  # Gradient Boosting généralement meilleur que Random Forest
+  type: 'random_forest'  # Random Forest
   params:
-    # Gradient Boosting params (optimisés)
-    n_estimators: 200
-    max_depth: 5
-    learning_rate: 0.05
-    min_samples_split: 10
-    min_samples_leaf: 4
-    subsample: 0.8  # Pour réduire l'overfitting
+    # Random Forest params
+    n_estimators: 100
+    max_depth: 15
+    min_samples_split: 2
     random_state: 42
     
 
@@ -26,7 +23,6 @@ training:
 
 evaluation:
   metrics:
-    - rmse
     - mae
     - r2
   generate_plots: true

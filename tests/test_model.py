@@ -84,10 +84,9 @@ class TestModelTraining:
         
         metrics = calculate_metrics(y_true, y_pred)
         
-        assert 'rmse' in metrics
         assert 'mae' in metrics
         assert 'r2' in metrics
-        assert metrics['rmse'] > 0
+        assert metrics['mae'] > 0
         assert 0 <= metrics['r2'] <= 1
 
 
@@ -100,7 +99,8 @@ class TestModelEvaluation:
             metrics = load_metrics()
             assert metrics is not None
             assert 'test' in metrics
-            assert 'rmse' in metrics['test']
+            assert 'mae' in metrics['test']
+            assert 'r2' in metrics['test']
 
 
 def test_end_to_end_pipeline():

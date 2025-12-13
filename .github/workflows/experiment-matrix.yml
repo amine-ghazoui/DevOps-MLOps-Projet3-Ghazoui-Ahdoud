@@ -127,14 +127,13 @@ jobs:
                         'Modèle': data.get('model_type', 'random_forest'),
                         'N_estimators': data.get('model_params', {}).get('n_estimators', 'N/A'),
                         'Max_depth': data.get('model_params', {}).get('max_depth', 'N/A'),
-                        'RMSE': round(data['test']['rmse'], 2),
                         'MAE': round(data['test']['mae'], 2),
                         'R²': round(data['test']['r2'], 4)
                     })
         if not results:
             print("❌ Aucun résultat trouvé")
             exit(1)
-        df = pd.DataFrame(results).sort_values('RMSE')
+        df = pd.DataFrame(results).sort_values('MAE')
         print('\n' + '='*80)
         print('📊 RÉSUMÉ DES EXPÉRIENCES')
         print('='*80 + '\n')
@@ -155,7 +154,6 @@ jobs:
             f.write(f"- **Modèle:** {best['Modèle']}\n")
             f.write(f"- **N_estimators:** {best['N_estimators']}\n")
             f.write(f"- **Max_depth:** {best['Max_depth']}\n")
-            f.write(f"- **RMSE:** {best['RMSE']}\n")
             f.write(f"- **MAE:** {best['MAE']}\n")
             f.write(f"- **R²:** {best['R²']}\n")
         EOF
