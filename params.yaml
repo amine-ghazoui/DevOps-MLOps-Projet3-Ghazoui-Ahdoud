@@ -11,7 +11,7 @@ model:
   type: 'random_forest'  # Random Forest
   params:
     # Random Forest params optimisés pour meilleures performances
-    n_estimators: 300  # Plus d'arbres = meilleure performance (mais plus lent)
+    n_estimators: 250  # Plus d'arbres = meilleure performance (mais plus lent)
     max_depth: 20  # Profondeur augmentée pour capturer plus de patterns
     min_samples_split: 5  # Évite l'overfitting avec des splits plus stricts
     min_samples_leaf: 2  # Chaque feuille doit avoir au moins 2 échantillons
