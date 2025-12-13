@@ -125,28 +125,76 @@ def generate_comparison_report(comparison, output_path='reports/comparison_repor
 
 
 def plot_comparison(comparison, output_path='reports/comparison_plot.png'):
-    """Crée un graphique de comparaison"""
+    """Crée un graphique de comparaison avec sous-graphiques pour échelles différentes"""
     if comparison is None:
         return
     
     metrics = list(comparison['improvements'].keys())
-    baseline_values = [comparison['improvements'][m]['baseline'] for m in metrics]
-    current_values = [comparison['improvements'][m]['current'] for m in metrics]
     
-    x = np.arange(len(metrics))
-    width = 0.35
+    # Séparer les métriques par type d'échelle
+    mae_metrics = [m for m in metrics if m == 'mae']
+    r2_metrics = [m for m in metrics if m == 'r2']
     
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    bars1 = ax.bar(x - width/2, baseline_values, width, label='Baseline', alpha=0.8)
-    bars2 = ax.bar(x + width/2, current_values, width, label='Actuel', alpha=0.8)
-    
-    ax.set_xlabel('Métriques')
-    ax.set_ylabel('Valeurs')
-    ax.set_title('Comparaison des modèles')
-    ax.set_xticks(x)
-    ax.set_xticklabels([m.upper() for m in metrics])
-    ax.legend()
+    # Créer des sous-graphiques si on a les deux types de métriques
+    if mae_metrics and r2_metrics:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        
+        # Graphique pour MAE
+        for i, metric in enumerate(mae_metrics):
+            baseline_val = comparison['improvements'][metric]['baseline']
+            current_val = comparison['improvements'][metric]['current']
+            
+            x = [0]
+            width = 0.35
+            ax1.bar([x[0] - width/2], baseline_val, width, label='Baseline', alpha=0.8, color='#3498db')
+            ax1.bar([x[0] + width/2], current_val, width, label='Actuel', alpha=0.8, color='#e74c3c')
+            
+            ax1.set_xlabel('Métriques')
+            ax1.set_ylabel('Valeurs')
+            ax1.set_title('MAE')
+            ax1.set_xticks(x)
+            ax1.set_xticklabels([metric.upper()])
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+        
+        # Graphique pour R2
+        for i, metric in enumerate(r2_metrics):
+            baseline_val = comparison['improvements'][metric]['baseline']
+            current_val = comparison['improvements'][metric]['current']
+            
+            x = [0]
+            width = 0.35
+            ax2.bar([x[0] - width/2], baseline_val, width, label='Baseline', alpha=0.8, color='#3498db')
+            ax2.bar([x[0] + width/2], current_val, width, label='Actuel', alpha=0.8, color='#e74c3c')
+            
+            ax2.set_xlabel('Métriques')
+            ax2.set_ylabel('Valeurs')
+            ax2.set_title('R²')
+            ax2.set_xticks(x)
+            ax2.set_xticklabels([metric.upper()])
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+        
+        plt.suptitle('Comparaison Baseline vs Actuel', fontsize=14, fontweight='bold')
+    else:
+        # Fallback: graphique simple si une seule métrique
+        fig, ax = plt.subplots(figsize=(10, 6))
+        baseline_values = [comparison['improvements'][m]['baseline'] for m in metrics]
+        current_values = [comparison['improvements'][m]['current'] for m in metrics]
+        
+        x = np.arange(len(metrics))
+        width = 0.35
+        
+        ax.bar(x - width/2, baseline_values, width, label='Baseline', alpha=0.8, color='#3498db')
+        ax.bar(x + width/2, current_values, width, label='Actuel', alpha=0.8, color='#e74c3c')
+        
+        ax.set_xlabel('Métriques')
+        ax.set_ylabel('Valeurs')
+        ax.set_title('Comparaison des modèles')
+        ax.set_xticks(x)
+        ax.set_xticklabels([m.upper() for m in metrics])
+        ax.legend()
+        ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=120)
